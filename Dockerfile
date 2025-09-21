@@ -73,16 +73,16 @@ RUN set -x \
         xfce4-terminal \
         # VNC Server
         tightvncserver \
-        # Runtime libraries
+        # Runtime libraries - CORRECTED FFMPEG VERSIONS FOR DEBIAN 12
         libvncserver1 \
         libcairo2 \
         libjpeg62-turbo \
         libpng16-16 \
         libossp-uuid16 \
         libpango-1.0-0 \
-        libavcodec60 \
-        libavformat60 \
-        libswscale7 \
+        libavcodec59 \
+        libavformat59 \
+        libswscale6 \
         libwebp7 \
         libssl3 \
         # Java 17 for Tomcat
