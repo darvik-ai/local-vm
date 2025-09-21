@@ -1,7 +1,7 @@
 # ──────────────────────────────────────────────────────────────────────────────
 # Builder Stage: Compile the latest stable guacd with RDP plugin only
 # ──────────────────────────────────────────────────────────────────────────────
-FROM ubuntu:24.04 AS builder
+FROM ubuntu:22.04 AS builder
 
 # Set Guacamole version as a build argument
 ARG GUAC_VERSION=1.5.5
@@ -29,7 +29,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends software-proper
     libswscale-dev \
     libwebp-dev \
     libssl-dev \
-    libfreerdp3-dev \
+    libfreerdp2-dev \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
@@ -46,7 +46,7 @@ RUN git clone --depth 1 --branch ${GUAC_VERSION} https://github.com/apache/guaca
 # ──────────────────────────────────────────────────────────────────────────────
 # Final Stage: Runtime image (guacd + Tomcat + guacamole.war + XFCE & xrdp)
 # ──────────────────────────────────────────────────────────────────────────────
-FROM ubuntu:24.04
+FROM ubuntu:22.04
 
 ARG GUAC_VERSION=1.5.5
 ARG DEBIAN_FRONTEND=noninteractive
@@ -71,15 +71,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     # xrdp RDP server
     xrdp \
     # Runtime libraries for guacd
-    freerdp3-x11 \
+    freerdp2-x11 \
     libcairo2 \
     libjpeg-turbo8 \
     libpng16-16 \
     libossp-uuid16 \
     libpango-1.0-0 \
-    libavcodec60 \
-    libavformat60 \
-    libswscale7 \
+    libavcodec58 \
+    libavformat58 \
+    libswscale5 \
     libwebp7 \
     libssl3 \
     # Java 17 runtime for Tomcat
