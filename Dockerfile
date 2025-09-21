@@ -25,7 +25,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libswscale-dev \
     libwebp-dev \
     libssl-dev \
-    libfreerdp-dev3 \
+    libfreerdp3-dev \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
@@ -123,7 +123,7 @@ ENV GUACAMOLE_HOME=/etc/guacamole
 # 8) Create a non-root user and grant passwordless sudo
 RUN useradd -m -u 10001 -s /bin/bash guacuser \
     && echo "guacuser:o4Zt2TtRh8GmD3gxv" | chpasswd \
-    && usermod -aG sudo,video guacuser \
+    && usod -aG sudo,video guacuser \
     && echo "guacuser ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers \
     && mkdir -p /home/guacuser/Desktop \
     && chown -R guacuser:guacuser /opt/tomcat /config /home/guacuser
