@@ -2,9 +2,10 @@
 set -e
 
 # Start VNC Server on display :1 (which corresponds to TCP port 5901)
-# The '-localhost no' flag allows guacd (running as root) to connect to it.
+# The '-localhost no' flag was removed as it was causing an error.
+# The server will listen on all interfaces by default.
 echo "Starting VNC server on :1..."
-vncserver :1 -geometry 1280x800 -depth 24 -localhost no
+vncserver :1 -geometry 1280x800 -depth 24
 
 # Start guacd (the Guacamole proxy daemon) in the background as root
 echo "Starting guacd..."
