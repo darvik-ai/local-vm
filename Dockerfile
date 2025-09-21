@@ -10,7 +10,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 # Install build dependencies for Guacamole server
 # Explicitly enable the 'universe' repository to ensure all packages are found.
 RUN apt-get update && apt-get install -y --no-install-recommends software-properties-common \
-    && add-apt-repository universe \
+    && add-apt-repository -y universe \
     && apt-get update \
     && apt-get install -y --no-install-recommends \
     build-essential \
