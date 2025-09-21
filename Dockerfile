@@ -3,11 +3,12 @@
 # ──────────────────────────────────────────────────────────────────────────────
 FROM ubuntu:24.04 AS builder
 
-# Set Guacamole version as a build argument
+# Set Guacamole version as a build argument for easy updates
 ARG GUAC_VERSION=1.5.5
 ARG DEBIAN_FRONTEND=noninteractive
 
 # Install build dependencies for Guacamole server with VNC support
+# Note: libvncserver-dev is used instead of RDP-related libraries
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     git \
@@ -29,11 +30,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Clone, configure, and build Guacamole server for VNC
+# Clone, configure, and build Guacamole server specifically for VNC
 RUN git clone --depth 1 --branch ${GUAC_VERSION} https://github.com/apache/guacamole-server.git /tmp/guacamole-server \
     && cd /tmp/guacamole-server \
     && autoreconf -fi \
-    && ./configure --with-systemd-dir=/etc/systemd/system --enable-vnc --disable-rdp --disable-ssh \
+    && ./configure --enable-vnc --disable-rdp \
     && make -j"$(nproc)" \
     && make install \
     && ldconfig \
@@ -98,7 +99,7 @@ RUN chown -R root:root /etc/guacamole \
     && find /etc/guacamole -type d -exec chmod 755 {} \; \
     && find /etc/guacamole -type f -exec chmod 644 {} \;
 
-# 4) Install Apache Tomcat (barebones)
+# 4) Install Apache Tomcat
 RUN mkdir /opt/tomcat \
     && wget -q https://archive.apache.org/dist/tomcat/tomcat-9/v9.0.89/bin/apache-tomcat-9.0.89.tar.gz -O /tmp/tomcat.tar.gz \
     && tar xzf /tmp/tomcat.tar.gz -C /opt/tomcat --strip-components=1 \
