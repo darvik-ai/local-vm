@@ -4,9 +4,6 @@
 name: Build and Push Docker Image to GHCR
 
 on:
-  push:
-    branches:
-      - master
   workflow_dispatch: # Allows manual triggering
 
 jobs:
