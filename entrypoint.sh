@@ -18,6 +18,9 @@ while ! nc -z 127.0.0.1 4822; do
 done
 echo "guacd is ready."
 
+# Set the JRE_HOME environment variable for Tomcat
+export JRE_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+
 # Start Tomcat in the foreground. This keeps the container running.
 echo "Starting Tomcat..."
 /opt/tomcat/bin/catalina.sh run
