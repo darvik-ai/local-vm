@@ -2,9 +2,9 @@
 <user-mapping>
     <authorize username="state-lethargy-crouton" password="S6C4J09CPMGARP28">
         <connection name="XFCE Desktop">
-            <protocol>rdp</protocol>
+            <protocol>vnc</protocol>
             <param name="hostname">127.0.0.1</param>
-            <param name="port">3389</param>
+            <param name="port">5901</param>
             <param name="username">guacuser</param>
             <param name="password">o4Zt2TtRh8GmD3gxv</param>
             <param name="security">any</param>
