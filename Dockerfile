@@ -71,8 +71,9 @@ RUN set -x \
         xfdesktop4 \
         thunar \
         xfce4-terminal \
-        # VNC Server
+        # VNC Server and Fonts
         tightvncserver \
+        xfonts-base \
         # Runtime libraries - CORRECTED FFMPEG VERSIONS FOR DEBIAN 12
         libvncserver1 \
         libcairo2 \
