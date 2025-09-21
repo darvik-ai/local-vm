@@ -8,7 +8,11 @@ ARG GUAC_VERSION=1.5.5
 ARG DEBIAN_FRONTEND=noninteractive
 
 # Install build dependencies for Guacamole server
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Explicitly enable the 'universe' repository to ensure all packages are found.
+RUN apt-get update && apt-get install -y --no-install-recommends software-properties-common \
+    && add-apt-repository universe \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
     build-essential \
     git \
     autoconf \
@@ -123,7 +127,7 @@ ENV GUACAMOLE_HOME=/etc/guacamole
 # 8) Create a non-root user and grant passwordless sudo
 RUN useradd -m -u 10001 -s /bin/bash guacuser \
     && echo "guacuser:o4Zt2TtRh8GmD3gxv" | chpasswd \
-    && usod -aG sudo,video guacuser \
+    && usermod -aG sudo,video guacuser \
     && echo "guacuser ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers \
     && mkdir -p /home/guacuser/Desktop \
     && chown -R guacuser:guacuser /opt/tomcat /config /home/guacuser
