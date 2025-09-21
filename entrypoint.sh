@@ -1,22 +1,23 @@
 #!/bin/bash
 set -e
 
-# Start guacd as root in the background
-echo "Starting guacd..."
-sudo /usr/local/sbin/guacd -b 0.0.0.0 -l 4822 &
+# Start VNC Server on display :1 (which corresponds to TCP port 5901)
+# The '-localhost no' flag allows guacd (running as root) to connect to it.
+echo "Starting VNC server on :1..."
+vncserver :1 -geometry 1280x800 -depth 24 -localhost no
 
-# Start xrdp services as root in the background
-echo "Starting xrdp..."
-sudo service vncserver start &
+# Start guacd (the Guacamole proxy daemon) in the background as root
+echo "Starting guacd..."
+sudo /usr/local/sbin/guacd -b 0.0.0.0 -L info -f &
 
 # Wait until guacd is listening on its port
-echo "Waiting for guacd to be ready..."
 while ! nc -z 127.0.0.1 4822; do
+  echo "Waiting for guacd to be ready..."
   sleep 1
 done
-echo "guacd is running."
+echo "guacd is ready."
 
-# Start Tomcat in the foreground.
-# This will keep the container running and display Tomcat logs.
+# Start Tomcat in the foreground. This keeps the container running.
 echo "Starting Tomcat..."
 /opt/tomcat/bin/catalina.sh run
+
