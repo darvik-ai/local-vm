@@ -1,0 +1,17 @@
+<!-- /etc/guacamole/user-mapping.xml -->
+<user-mapping>
+    <authorize username="state-lethargy-crouton" password="S6C4J09CPMGARP28">
+        <connection name="XFCE Desktop">
+            <protocol>rdp</protocol>
+            <param name="hostname">127.0.0.1</param>
+            <param name="port">3389</param>
+            <param name="username">guacuser</param>
+            <param name="password">o4Zt2TtRh8GmD3gxv</param>
+            <param name="security">any</param>
+            <param name="ignore-cert">true</param>
+            <param name="resize-method">reconnect</param>
+            <param name="enable-drive">true</param>
+            <param name="drive-path">/home/guacuser/Desktop</param>
+        </connection>
+    </authorize>
+</user-mapping>
