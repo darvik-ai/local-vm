@@ -25,7 +25,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libswscale-dev \
     libwebp-dev \
     libssl-dev \
-    libfreerdp-dev \
+    libfreerdp-dev3 \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
@@ -67,7 +67,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     # xrdp RDP server
     xrdp \
     # Runtime libraries for guacd
-    freerdp2-x11 \
+    freerdp3-x11 \
     libcairo2 \
     libjpeg-turbo8 \
     libpng16-16 \
@@ -138,3 +138,4 @@ RUN chmod +x /entrypoint.sh
 # 11) Switch to non-root user and define the entrypoint
 USER 10001
 ENTRYPOINT ["/entrypoint.sh"]
+
