@@ -8,7 +8,6 @@ ARG GUAC_VERSION=1.5.5
 ARG DEBIAN_FRONTEND=noninteractive
 
 # Install build dependencies for Guacamole server with VNC support
-# Note: libvncserver-dev is used instead of RDP-related libraries
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     git \
@@ -62,32 +61,11 @@ RUN ldconfig
 
 # 2) Install runtime packages (XFCE desktop, VNC server, Tomcat prerequisites, etc.)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    # XFCE desktop environment
-    xfce4 \
-    xfce4-goodies \
-    # VNC Server
-    tightvncserver \
-    # Runtime libraries for guacd VNC support
-    libvncserver1 \
-    libcairo2 \
-    libjpeg-turbo8 \
-    libpng16-16 \
-    libossp-uuid16 \
-    libpango-1.0-0 \
-    libavcodec60 \
-    libavformat60 \
-    libswscale7 \
-    libwebp7 \
-    libssl3 \
-    # Java 17 runtime for Tomcat
+    xfce4 xfce4-goodies tightvncserver \
+    libvncserver1 libcairo2 libjpeg-turbo8 libpng16-16 libossp-uuid16 \
+    libpango-1.0-0 libavcodec60 libavformat60 libswscale7 libwebp7 libssl3 \
     openjdk-17-jre-headless \
-    # Utilities
-    curl \
-    wget \
-    sudo \
-    netcat-openbsd \
-    locales \
-    vim \
+    curl wget sudo netcat-openbsd locales vim \
     && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/* \
     && locale-gen en_US.UTF-8
@@ -121,15 +99,14 @@ RUN useradd -m -u 10001 -s /bin/bash guacuser \
     && echo "guacuser ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers \
     && mkdir -p /home/guacuser/Desktop
 
-# 8) Configure VNC server for the non-root user
-USER guacuser
+# 8) Configure VNC and set final ownership and permissions
+# All steps are now performed as root to prevent permission errors.
 RUN mkdir -p /home/guacuser/.vnc \
-    && echo "o4Zt2TtRh8GmD3gxv" | vncpasswd -f > /home/guacuser/.vnc/passwd \
-    && chmod 600 /home/guacuser/.vnc/passwd
+    && echo "o4Zt2TtRh8GmD3gxv" | vncpasswd -f > /home/guacuser/.vnc/passwd
 COPY xstartup /home/guacuser/.vnc/xstartup
-RUN chmod 755 /home/guacuser/.vnc/xstartup
-USER root
-RUN chown -R guacuser:guacuser /opt/tomcat /config /home/guacuser
+RUN chmod 600 /home/guacuser/.vnc/passwd \
+    && chmod 755 /home/guacuser/.vnc/xstartup \
+    && chown -R guacuser:guacuser /opt/tomcat /config /home/guacuser
 
 # 9) Expose Tomcat's port. guacd (4822) & vnc (5901) remain internal.
 EXPOSE 8080
@@ -138,7 +115,7 @@ EXPOSE 8080
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-# 11) Switch to non-root user and define the entrypoint
+# 11) Switch to non-root user for runtime security
 USER 10001
 ENTRYPOINT ["/entrypoint.sh"]
 
