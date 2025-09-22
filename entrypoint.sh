@@ -20,9 +20,11 @@ while ! nc -z 127.0.0.1 4822; do
 done
 echo "guacd is ready."
 
-# Set the JRE_HOME environment variable for Tomcat
-# This path must match the Java installation location from the Dockerfile.
-export JRE_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+# Set a more complete Java environment for Tomcat
+# This solves the "JRE_HOME is not defined correctly" error
+export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+export JRE_HOME=$JAVA_HOME
+export PATH=$JAVA_HOME/bin:$PATH
 
 # Start Tomcat in the foreground. This keeps the container running.
 echo "Starting Tomcat..."
