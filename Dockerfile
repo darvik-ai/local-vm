@@ -46,8 +46,9 @@ RUN git clone --depth 1 --branch ${GUAC_VERSION} https://github.com/apache/guaca
 # ──────────────────────────────────────────────────────────────────────────────
 # Stage 2: Final Image
 #
-# This stage uses a more robust installation method to ensure stability.
-# It prioritizes a working build over minimal image size.
+# This stage creates the final, optimized runtime image. It copies the compiled
+# guacd from the builder stage and installs a minimal XFCE desktop, VNC server,
+# Tomcat, and the Guacamole web application.
 # ──────────────────────────────────────────────────────────────────────────────
 FROM debian:12-slim
 
@@ -62,49 +63,49 @@ COPY --from=builder /usr/local/lib/libguac* /usr/local/lib/
 COPY --from=builder /usr/local/include/guacamole /usr/local/include/guacamole
 RUN ldconfig
 
-# == INSTALLATION STAGE ==
-# Install all dependencies in a single layer for stability.
-# Using standard metapackages is more reliable than cherry-picking.
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    # Full XFCE Desktop & Goodies for stability
-    xfce4 \
-    xfce4-goodies \
-    # Modern VNC Server (this package includes all necessary tools)
-    tigervnc-standalone-server \
-    # Runtime libraries for guacd
-    libvncserver1 \
-    libcairo2 \
-    libjpeg62-turbo \
-    libpng16-16 \
-    libossp-uuid16 \
-    libpango-1.0-0 \
-    libavcodec59 \
-    libavformat59 \
-    libswscale6 \
-    libwebp7 \
-    libssl3 \
-    # Java 17 JDK for Tomcat
-    openjdk-17-jdk-headless \
-    # Utilities needed for setup
-    sudo \
-    netcat-openbsd \
-    locales \
-    wget \
-    && rm -rf /var/lib/apt/lists/*
-
-# == CONFIGURATION STAGE ==
-# Set up locale, user, VNC, and install Tomcat/Guacamole in one layer.
-RUN sed -i 's/^# *\(en_US.UTF-8\)/\1/' /etc/locale.gen && locale-gen \
+# This single layer installs dependencies, downloads assets, and cleans up after itself.
+RUN set -x \
+    # Install build-time dependencies and runtime dependencies
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+        wget \
+        ca-certificates \
+        # Minimal XFCE Core & Fonts
+        xfce4-session \
+        xfce4-panel \
+        xfwm4 \
+        xfdesktop4 \
+        thunar \
+        xfce4-terminal \
+        xfonts-base \
+        # VNC Server
+        tightvncserver \
+        # Runtime libraries for guacd (ensure versions match Debian 12)
+        libvncserver1 \
+        libcairo2 \
+        libjpeg62-turbo \
+        libpng16-16 \
+        libossp-uuid16 \
+        libpango-1.0-0 \
+        libavcodec59 \
+        libavformat59 \
+        libswscale6 \
+        libwebp7 \
+        libssl3 \
+        # Java 17 JDK for Tomcat
+        openjdk-17-jdk-headless \
+        # Utilities
+        sudo \
+        netcat-openbsd \
+        locales \
+    # Generate locale
+    && sed -i 's/^# *\(en_US.UTF-8\)/\1/' /etc/locale.gen && locale-gen \
+    # Create non-root user
     && useradd -m -u 10001 -s /bin/bash guacuser \
-    # Using the SAME 8-character password for both OS and VNC to avoid confusion
-    && echo "guacuser:o4Zt2Tt" | chpasswd \
+    && echo "guacuser:o4Zt2TtRh8GmD3gxv" | chpasswd \
     && usermod -aG sudo,video guacuser \
     && echo "guacuser ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers \
     && mkdir -p /home/guacuser/Desktop \
-    # VNC Setup (run as root, for the user)
-    && mkdir -p /home/guacuser/.vnc \
-    && echo "o4Zt2Tt" | vncpasswd -f > /home/guacuser/.vnc/passwd \
-    && chmod 600 /home/guacuser/.vnc/passwd \
     # Install Tomcat
     && mkdir /opt/tomcat \
     && wget -q https://archive.apache.org/dist/tomcat/tomcat-9/v${TOMCAT_VERSION}/bin/apache-tomcat-${TOMCAT_VERSION}.tar.gz -O /tmp/tomcat.tar.gz \
@@ -113,16 +114,21 @@ RUN sed -i 's/^# *\(en_US.UTF-8\)/\1/' /etc/locale.gen && locale-gen \
     && mkdir -p /config \
     && wget -q -O /config/guacamole.war https://downloads.apache.org/guacamole/${GUAC_VERSION}/binary/guacamole-${GUAC_VERSION}.war \
     && ln -s /config/guacamole.war /opt/tomcat/webapps/ \
-    # Clean up temp files
-    && rm -rf /tmp/*
+    # Clean up build-time dependencies and caches to reduce image size
+    && apt-get purge -y --auto-remove wget \
+    && rm -rf /tmp/* /var/lib/apt/lists/*
 
 # Configure Guacamole
+RUN mkdir -p /etc/guacamole
 COPY guacamole.properties user-mapping.xml logback.xml /etc/guacamole/
 RUN chown -R root:root /etc/guacamole \
     && find /etc/guacamole -type d -exec chmod 755 {} \; \
     && find /etc/guacamole -type f -exec chmod 644 {} \;
 
-# Copy VNC startup script
+# Configure VNC password and startup script using the explicit 8-character password
+RUN mkdir -p /home/guacuser/.vnc \
+    && echo "o4Zt2Tt" | vncpasswd -f > /home/guacuser/.vnc/passwd \
+    && chmod 600 /home/guacuser/.vnc/passwd
 COPY xstartup /home/guacuser/.vnc/xstartup
 RUN chmod 755 /home/guacuser/.vnc/xstartup
 
@@ -139,4 +145,3 @@ RUN chmod +x /entrypoint.sh
 # Switch to non-root user and set final entrypoint
 USER guacuser
 ENTRYPOINT ["/entrypoint.sh"]
-
