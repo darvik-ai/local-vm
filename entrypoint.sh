@@ -16,10 +16,9 @@ export PATH=$JAVA_HOME/bin:$PATH
 echo "Starting VNC server on :1..."
 vncserver :1 -geometry 1280x800 -depth 24 &
 
-# Start Guacamole daemon (guacd) listening only on localhost for security and reliability.
-# Log level is increased to debug for better diagnostics.
+# Start Guacamole daemon (guacd) listening on all interfaces for maximum compatibility within Docker.
 echo "Starting guacd..."
-/usr/local/sbin/guacd -b 127.0.0.1 -L debug &
+/usr/local/sbin/guacd -b 0.0.0.0 -L info &
 
 # Wait for guacd to be ready before starting Tomcat
 echo "Waiting for guacd to be ready..."
