@@ -46,9 +46,8 @@ RUN git clone --depth 1 --branch ${GUAC_VERSION} https://github.com/apache/guaca
 # ──────────────────────────────────────────────────────────────────────────────
 # Stage 2: Final Image
 #
-# This stage creates the final, optimized runtime image. It copies the compiled
-# guacd from the builder stage and installs a minimal XFCE desktop, VNC server,
-# Tomcat, and the Guacamole web application.
+# This stage creates the final, optimized runtime image. It uses TigerVNC
+# for a more stable and reliable VNC server experience.
 # ──────────────────────────────────────────────────────────────────────────────
 FROM debian:12-slim
 
@@ -65,7 +64,6 @@ RUN ldconfig
 
 # This single layer installs dependencies, downloads assets, and cleans up after itself.
 RUN set -x \
-    # Install build-time dependencies and runtime dependencies
     && apt-get update \
     && apt-get install -y --no-install-recommends \
         wget \
@@ -78,9 +76,10 @@ RUN set -x \
         thunar \
         xfce4-terminal \
         xfonts-base \
-        # VNC Server
-        tightvncserver \
-        # Runtime libraries for guacd (ensure versions match Debian 12)
+        # Modern VNC Server: TigerVNC
+        tigervnc-standalone-server \
+        tigervnc-common \
+        # Runtime libraries for guacd
         libvncserver1 \
         libcairo2 \
         libjpeg62-turbo \
@@ -114,18 +113,17 @@ RUN set -x \
     && mkdir -p /config \
     && wget -q -O /config/guacamole.war https://downloads.apache.org/guacamole/${GUAC_VERSION}/binary/guacamole-${GUAC_VERSION}.war \
     && ln -s /config/guacamole.war /opt/tomcat/webapps/ \
-    # Clean up build-time dependencies and caches to reduce image size
+    # Clean up
     && apt-get purge -y --auto-remove wget \
     && rm -rf /tmp/* /var/lib/apt/lists/*
 
 # Configure Guacamole
-RUN mkdir -p /etc/guacamole
 COPY guacamole.properties user-mapping.xml logback.xml /etc/guacamole/
 RUN chown -R root:root /etc/guacamole \
     && find /etc/guacamole -type d -exec chmod 755 {} \; \
     && find /etc/guacamole -type f -exec chmod 644 {} \;
 
-# Configure VNC password and startup script using the explicit 8-character password
+# Configure VNC password and startup scripts
 RUN mkdir -p /home/guacuser/.vnc \
     && echo "o4Zt2Tt" | vncpasswd -f > /home/guacuser/.vnc/passwd \
     && chmod 600 /home/guacuser/.vnc/passwd
