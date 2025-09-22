@@ -16,15 +16,19 @@ export PATH=$JAVA_HOME/bin:$PATH
 echo "Starting VNC server on :1..."
 vncserver :1 -geometry 1280x800 -depth 24 &
 
-# Start Guacamole daemon (guacd) as a background process
+# Start Guacamole daemon (guacd) listening only on localhost for security and reliability.
+# Log level is increased to debug for better diagnostics.
 echo "Starting guacd..."
-/usr/local/sbin/guacd -b 0.0.0.0 -L info &
+/usr/local/sbin/guacd -b 127.0.0.1 -L debug &
 
 # Wait for guacd to be ready before starting Tomcat
 echo "Waiting for guacd to be ready..."
 while ! nc -z localhost 4822; do
   sleep 1
 done
+
+# Add a small delay to allow guacd to fully initialize
+sleep 2
 echo "guacd is ready."
 
 # Start Tomcat in the foreground
