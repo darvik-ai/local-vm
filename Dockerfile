@@ -76,7 +76,8 @@ RUN set -x \
         thunar \
         xfce4-terminal \
         xfonts-base \
-        # Modern VNC Server: TigerVNC
+        # Modern VNC Server: TigerVNC (installing metapackage to ensure all tools are present)
+        tigervnc-server \
         tigervnc-standalone-server \
         tigervnc-common \
         # Runtime libraries for guacd
