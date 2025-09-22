@@ -1,32 +1,32 @@
 #!/bin/bash
 set -e
 
-# Set environment variables required for services to run
+# Set environment variables for services
 export USER=guacuser
+export HOME=/home/guacuser
 export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
-export JRE_HOME=$JAVA_HOME
-export PATH=$JAVA_HOME/bin:$PATH
 
-# Clean up old VNC locks in case of a messy container restart
+# Clean up old VNC locks to ensure a clean start
 rm -f /tmp/.X1-lock /tmp/.X11-unix/X1
 
-# Start VNC Server and guacd as background processes
-echo "Starting VNC server on :1..."
-vncserver :1 -geometry 1280x800 -depth 24 &
+# Start the TigerVNC server in the background
+# It will automatically find and use the ~/.vnc/xstartup script
+echo "Starting TigerVNC server on :1..."
+vncserver :1 -localhost no -geometry 1280x800 -depth 24 &
 
+# Start the Guacamole daemon in the background
 echo "Starting guacd..."
 /usr/local/sbin/guacd -b 0.0.0.0 -L info &
 
-# Give the services a moment to initialize fully before starting Tomcat
+# Wait for services to initialize before starting Tomcat
+echo "Waiting for services to settle..."
 sleep 3
 
-# Start Tomcat in the background using the 'start' command
+# Start Tomcat as a background daemon
 echo "Starting Tomcat..."
 /opt/tomcat/bin/catalina.sh start
 
-# Tail the main Tomcat log file. This will stream the logs to the container's
-# output and, most importantly, keep the script running in the foreground,
-# which prevents the container from exiting.
-echo "Streaming Tomcat logs to keep container alive..."
+# Keep the container alive by tailing the Tomcat log file
+echo "Streaming Tomcat logs..."
 tail -f /opt/tomcat/logs/catalina.out
 
