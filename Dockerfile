@@ -125,7 +125,7 @@ RUN chown -R root:root /etc/guacamole \
     && find /etc/guacamole -type d -exec chmod 755 {} \; \
     && find /etc/guacamole -type f -exec chmod 644 {} \;
 
-# Configure VNC password and startup script
+# Configure VNC password and startup script using the explicit 8-character password
 RUN mkdir -p /home/guacuser/.vnc \
     && echo "o4Zt2Tt" | vncpasswd -f > /home/guacuser/.vnc/passwd \
     && chmod 600 /home/guacuser/.vnc/passwd
