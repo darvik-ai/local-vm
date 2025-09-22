@@ -138,9 +138,11 @@ RUN chown -R guacuser:guacuser /opt/tomcat /config /home/guacuser
 # Expose only Tomcat's port
 EXPOSE 8080
 
-# Switch to non-root user and set entrypoint
-USER guacuser
+# Copy and prepare the entrypoint script as root
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
+
+# Switch to non-root user and set final entrypoint
+USER guacuser
 ENTRYPOINT ["/entrypoint.sh"]
 
