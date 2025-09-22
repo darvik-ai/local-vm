@@ -1,17 +1,20 @@
 <!-- /etc/guacamole/user-mapping.xml -->
+
 <user-mapping>
     <authorize username="state-lethargy-crouton" password="S6C4J09CPMGARP28">
         <connection name="XFCE Desktop">
             <protocol>vnc</protocol>
             <param name="hostname">127.0.0.1</param>
             <param name="port">5901</param>
-            <param name="username">guacuser</param>
-            <param name="password">o4Zt2TtRh8GmD3gxv</param>
-            <param name="security">any</param>
-            <param name="ignore-cert">true</param>
+            <!-- 
+              NOTE: VNC passwords are truncated to 8 characters. 
+              This password must match the truncated version used by vncpasswd.
+            -->
+            <param name="password">o4Zt2Tt</param>
             <param name="resize-method">reconnect</param>
             <param name="enable-drive">true</param>
             <param name="drive-path">/home/guacuser/Desktop</param>
         </connection>
     </authorize>
 </user-mapping>
+
