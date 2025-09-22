@@ -1,13 +1,17 @@
 # ──────────────────────────────────────────────────────────────────────────────
-# Builder Stage: Compile guacd with VNC on a slim base
+# Stage 1: Builder
+#
+# This stage compiles the guacd daemon with only the VNC plugin enabled.
+# It uses Debian 12 (Bookworm) as the base.
 # ──────────────────────────────────────────────────────────────────────────────
 FROM debian:12-slim AS builder
 
+# Set versions for Guacamole and Tomcat
 ARG GUAC_VERSION=1.5.5
-ARG DEBIAN_FRONTEND=noninteractive
+ARG TOMCAT_VERSION=9.0.89
+ENV DEBIAN_FRONTEND=noninteractive
 
 # Install build dependencies for Guacamole server
-# Using Debian packages; libjpeg62-turbo-dev is the equivalent of libjpeg-turbo8-dev
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     git \
@@ -29,34 +33,36 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Clone, configure, and build Guacamole server
+# Download and compile Guacamole server
 RUN git clone --depth 1 --branch ${GUAC_VERSION} https://github.com/apache/guacamole-server.git /tmp/guacamole-server \
     && cd /tmp/guacamole-server \
     && autoreconf -fi \
-    && ./configure --enable-vnc --disable-rdp \
-    && make -j"$(nproc)" \
+    && ./configure --disable-rdp \
+    && make \
     && make install \
     && ldconfig \
     && rm -rf /tmp/guacamole-server
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Final Stage: Optimized runtime image
+# Stage 2: Final Image
+#
+# This stage creates the final, optimized runtime image. It copies the compiled
+# guacd from the builder stage and installs a minimal XFCE desktop, VNC server,
+# Tomcat, and the Guacamole web application.
 # ──────────────────────────────────────────────────────────────────────────────
 FROM debian:12-slim
 
 ARG GUAC_VERSION=1.5.5
-ARG DEBIAN_FRONTEND=noninteractive
+ARG TOMCAT_VERSION=9.0.89
+ENV DEBIAN_FRONTEND=noninteractive
+ENV LANG=en_US.UTF-8
 
-LABEL maintainer="you@example.com"
-LABEL description="Lightweight Guacamole VNC with minimal XFCE desktop & TightVNC"
-
-# 1) Copy guacd and its libraries from the builder stage
+# Copy compiled guacd and libraries from the builder stage
 COPY --from=builder /usr/local/sbin/guacd /usr/local/sbin/guacd
 COPY --from=builder /usr/local/lib/libguac* /usr/local/lib/
 COPY --from=builder /usr/local/include/guacamole /usr/local/include/guacamole
 RUN ldconfig
 
-# 2) Consolidated RUN command for installation, setup, and cleanup
 # This single layer installs dependencies, downloads assets, and cleans up after itself.
 RUN set -x \
     # Install build-time dependencies and runtime dependencies
@@ -64,17 +70,17 @@ RUN set -x \
     && apt-get install -y --no-install-recommends \
         wget \
         ca-certificates \
-        # Minimal XFCE Core
+        # Minimal XFCE Core & Fonts
         xfce4-session \
         xfce4-panel \
         xfwm4 \
         xfdesktop4 \
         thunar \
         xfce4-terminal \
-        # VNC Server and Fonts
-        tightvncserver \
         xfonts-base \
-        # Runtime libraries - CORRECTED FFMPEG VERSIONS FOR DEBIAN 12
+        # VNC Server
+        tightvncserver \
+        # Runtime libraries for guacd (ensure versions match Debian 12)
         libvncserver1 \
         libcairo2 \
         libjpeg62-turbo \
@@ -86,8 +92,8 @@ RUN set -x \
         libswscale6 \
         libwebp7 \
         libssl3 \
-        # Java 17 for Tomcat
-        openjdk-17-jre-headless \
+        # Java 17 JDK for Tomcat
+        openjdk-17-jdk-headless \
         # Utilities
         sudo \
         netcat-openbsd \
@@ -102,41 +108,39 @@ RUN set -x \
     && mkdir -p /home/guacuser/Desktop \
     # Install Tomcat
     && mkdir /opt/tomcat \
-    && wget -q https://archive.apache.org/dist/tomcat/tomcat-9/v9.0.89/bin/apache-tomcat-9.0.89.tar.gz -O /tmp/tomcat.tar.gz \
+    && wget -q https://archive.apache.org/dist/tomcat/tomcat-${TOMCAT_VERSION}/bin/apache-tomcat-${TOMCAT_VERSION}.tar.gz -O /tmp/tomcat.tar.gz \
     && tar xzf /tmp/tomcat.tar.gz -C /opt/tomcat --strip-components=1 \
     # Install Guacamole client
     && mkdir -p /config \
     && wget -q -O /config/guacamole.war https://downloads.apache.org/guacamole/${GUAC_VERSION}/binary/guacamole-${GUAC_VERSION}.war \
     && ln -s /config/guacamole.war /opt/tomcat/webapps/ \
     # Clean up build-time dependencies and caches to reduce image size
-    && apt-get purge -y --auto-remove wget ca-certificates \
+    && apt-get purge -y --auto-remove wget \
     && rm -rf /tmp/* /var/lib/apt/lists/*
 
-# 3) Configure /etc/guacamole
+# Configure Guacamole
+RUN mkdir -p /etc/guacamole
 COPY guacamole.properties user-mapping.xml logback.xml /etc/guacamole/
-RUN chmod -R 644 /etc/guacamole/* && chmod 755 /etc/guacamole
+RUN chown -R root:root /etc/guacamole \
+    && find /etc/guacamole -type d -exec chmod 755 {} \; \
+    && find /etc/guacamole -type f -exec chmod 644 {} \;
 
-# 4) Set environment variables
-ENV LANG=en_US.UTF-8
-ENV GUACAMOLE_HOME=/etc/guacamole
-ENV USER=guacuser
-
-# 5) Configure VNC and set final ownership and permissions
-COPY xstartup /home/guacuser/.vnc/xstartup
+# Configure VNC password and startup script
 RUN mkdir -p /home/guacuser/.vnc \
     && echo "o4Zt2TtRh8GmD3gxv" | vncpasswd -f > /home/guacuser/.vnc/passwd \
-    && chmod 600 /home/guacuser/.vnc/passwd \
-    && chmod 755 /home/guacuser/.vnc/xstartup \
-    && chown -R guacuser:guacuser /opt/tomcat /config /home/guacuser
+    && chmod 600 /home/guacuser/.vnc/passwd
+COPY xstartup /home/guacuser/.vnc/xstartup
+RUN chmod 755 /home/guacuser/.vnc/xstartup
 
-# 6) Expose Tomcat's port
+# Final ownership changes
+RUN chown -R guacuser:guacuser /opt/tomcat /config /home/guacuser
+
+# Expose only Tomcat's port
 EXPOSE 8080
 
-# 7) Copy entrypoint script
+# Switch to non-root user and set entrypoint
+USER guacuser
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
-
-# 8) Switch to non-root user for runtime security
-USER 10001
 ENTRYPOINT ["/entrypoint.sh"]
 
