@@ -108,7 +108,7 @@ RUN set -x \
     && mkdir -p /home/guacuser/Desktop \
     # Install Tomcat
     && mkdir /opt/tomcat \
-    && wget -q https://archive.apache.org/dist/tomcat/tomcat-${TOMCAT_VERSION}/bin/apache-tomcat-${TOMCAT_VERSION}.tar.gz -O /tmp/tomcat.tar.gz \
+    && wget -q https://archive.apache.org/dist/tomcat/tomcat-9/v${TOMCAT_VERSION}/bin/apache-tomcat-${TOMCAT_VERSION}.tar.gz -O /tmp/tomcat.tar.gz \
     && tar xzf /tmp/tomcat.tar.gz -C /opt/tomcat --strip-components=1 \
     # Install Guacamole client
     && mkdir -p /config \
