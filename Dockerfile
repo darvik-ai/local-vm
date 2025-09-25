@@ -7,6 +7,7 @@
 # through a standard web browser using noVNC.
 #
 # Author: Gemini
+# Version: 2.0 (Fixed permission issues by running as root)
 #
 # --- VERY IMPORTANT SECURITY WARNING ---
 # This configuration is designed for ease of use in a trusted, local environment ONLY.
@@ -39,42 +40,37 @@ RUN apt-get update && \
     # Clean up apt caches to reduce image size
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
-    # Create a non-root user to run applications
-    useradd -m -s /bin/bash -G sudo dockeruser && \
-    echo "dockeruser:dockeruser" | chpasswd && \
-    echo "dockeruser ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers && \
-    # Create VNC and application directories for the new user
-    mkdir -p /home/dockeruser/.vnc && \
+    # Create VNC directory for the root user
+    mkdir -p /root/.vnc && \
     # Create the VNC startup script
-    echo '#!/bin/sh' > /home/dockeruser/.vnc/xstartup && \
-    echo 'unset SESSION_MANAGER' >> /home/dockeruser/.vnc/xstartup && \
-    echo 'unset DBUS_SESSION_BUS_ADDRESS' >> /home/dockeruser/.vnc/xstartup && \
-    echo 'openbox-session &' >> /home/dockeruser/.vnc/xstartup && \
-    echo 'pcmanfm --desktop &' >> /home/dockeruser/.vnc/xstartup && \
-    echo 'xterm' >> /home/dockeruser/.vnc/xstartup && \
+    echo '#!/bin/sh' > /root/.vnc/xstartup && \
+    echo 'unset SESSION_MANAGER' >> /root/.vnc/xstartup && \
+    echo 'unset DBUS_SESSION_BUS_ADDRESS' >> /root/.vnc/xstartup && \
+    echo 'openbox-session &' >> /root/.vnc/xstartup && \
+    echo 'pcmanfm --desktop &' >> /root/.vnc/xstartup && \
+    echo 'xterm' >> /root/.vnc/xstartup && \
     # Make the startup script executable
-    chmod 755 /home/dockeruser/.vnc/xstartup && \
-    # Set correct ownership for the user's home directory
-    chown -R dockeruser:dockeruser /home/dockeruser && \
+    chmod 755 /root/.vnc/xstartup && \
     # Create the Supervisor configuration file to manage VNC and noVNC services
     echo '[supervisord]' > /etc/supervisor/conf.d/supervisord.conf && \
     echo 'nodaemon=true' >> /etc/supervisor/conf.d/supervisord.conf && \
     echo '' >> /etc/supervisor/conf.d/supervisord.conf && \
     echo '[program:vncserver]' >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "command=vncserver :1 -fg -geometry ${VNC_RESOLUTION} -depth ${VNC_DEPTH} -SecurityTypes None" >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo 'user=dockeruser' >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo 'user=root' >> /etc/supervisor/conf.d/supervisord.conf && \
     echo 'autorestart=true' >> /etc/supervisor/conf.d/supervisord.conf && \
     echo '' >> /etc/supervisor/conf.d/supervisord.conf && \
     echo '[program:novnc]' >> /etc/supervisor/conf.d/supervisord.conf && \
     echo 'command=/usr/bin/websockify --web /usr/share/novnc/ 6080 localhost:5901' >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo 'user=dockeruser' >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo 'user=root' >> /etc/supervisor/conf.d/supervisord.conf && \
     echo 'autorestart=true' >> /etc/supervisor/conf.d/supervisord.conf
 
 # Expose the noVNC web port
 EXPOSE 6080
 
 # Set the working directory for the container
-WORKDIR /home/dockeruser
+WORKDIR /root
 
 # Start Supervisor to run VNC and noVNC services
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
+
