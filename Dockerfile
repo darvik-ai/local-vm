@@ -7,7 +7,7 @@
 # through a standard web browser using noVNC.
 #
 # Author: Gemini
-# Version: 2.2 (Added dynamic PORT support for PaaS deployment)
+# Version: 2.3 (Robust entrypoint with lock file cleanup and better env substitution)
 #
 # --- VERY IMPORTANT SECURITY WARNING ---
 # This configuration is designed for ease of use in a trusted, local environment ONLY.
@@ -58,27 +58,40 @@ RUN apt-get update && \
     echo 'nodaemon=true' >> /etc/supervisor/supervisord.conf.template && \
     echo '' >> /etc/supervisor/supervisord.conf.template && \
     echo '[program:vncserver]' >> /etc/supervisor/supervisord.conf.template && \
-    echo "command=vncserver :1 -fg -geometry \${VNC_RESOLUTION} -depth \${VNC_DEPTH} -SecurityTypes None" >> /etc/supervisor/supervisord.conf.template && \
+    echo 'command=vncserver :1 -fg -geometry ${VNC_RESOLUTION} -depth ${VNC_DEPTH} -SecurityTypes None' >> /etc/supervisor/supervisord.conf.template && \
     echo 'user=root' >> /etc/supervisor/supervisord.conf.template && \
     echo 'autorestart=true' >> /etc/supervisor/supervisord.conf.template && \
     echo '' >> /etc/supervisor/supervisord.conf.template && \
     echo '[program:novnc]' >> /etc/supervisor/supervisord.conf.template && \
-    echo 'command=/usr/bin/websockify --web /usr/share/novnc/ 0.0.0.0:\${PORT:-6080} localhost:5901' >> /etc/supervisor/supervisord.conf.template && \
+    echo 'command=/usr/bin/websockify --web /usr/share/novnc/ 0.0.0.0:${PORT} localhost:5901' >> /etc/supervisor/supervisord.conf.template && \
     echo 'user=root' >> /etc/supervisor/supervisord.conf.template && \
     echo 'autorestart=true' >> /etc/supervisor/supervisord.conf.template
 
-# Create and add the entrypoint script to handle dynamic port assignment
+# Create and add the entrypoint script to handle dynamic port assignment and cleanup
 COPY <<'EOF' /entrypoint.sh
 #!/bin/sh
 set -e
-# Substitute environment variables in the supervisor template to create the final config
+
+# Set a default for PORT if it's not provided by the environment (for local testing)
+export PORT=${PORT:-6080}
+
+# Clean up VNC lock files for a clean start
+rm -f /tmp/.X*-lock /tmp/.X11-unix/X*
+echo "Starting container. Services will listen on PORT: ${PORT}"
+
+# Substitute all relevant environment variables into the template
 envsubst < /etc/supervisor/supervisord.conf.template > /etc/supervisor/conf.d/supervisord.conf
+
+echo "--- Generated supervisord.conf ---"
+cat /etc/supervisor/conf.d/supervisord.conf
+echo "------------------------------------"
+
 # Start supervisor
 exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
 EOF
 RUN chmod +x /entrypoint.sh
 
-# Expose the default port (Render will override this)
+# Expose the default port (platform will override this)
 EXPOSE 6080
 
 # Set the working directory for the container
