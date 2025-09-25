@@ -7,7 +7,7 @@
 # through a standard web browser using noVNC.
 #
 # Author: Gemini
-# Version: 2.1 (Fixed noVNC default page issue)
+# Version: 2.2 (Added dynamic PORT support for PaaS deployment)
 #
 # --- VERY IMPORTANT SECURITY WARNING ---
 # This configuration is designed for ease of use in a trusted, local environment ONLY.
@@ -25,7 +25,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 # Set up the container
 RUN apt-get update && \
-    # Install all necessary packages
+    # Install all necessary packages, including gettext-base for envsubst
     apt-get install -y --no-install-recommends \
     supervisor \
     openbox \
@@ -36,7 +36,7 @@ RUN apt-get update && \
     websockify \
     firefox-esr \
     curl \
-    sudo && \
+    gettext-base && \
     # Clean up apt caches to reduce image size
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
@@ -53,26 +53,37 @@ RUN apt-get update && \
     chmod 755 /root/.vnc/xstartup && \
     # Force create a symlink to the correct VNC client page
     ln -sf /usr/share/novnc/vnc.html /usr/share/novnc/index.html && \
-    # Create the Supervisor configuration file to manage VNC and noVNC services
-    echo '[supervisord]' > /etc/supervisor/conf.d/supervisord.conf && \
-    echo 'nodaemon=true' >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo '' >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo '[program:vncserver]' >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo "command=vncserver :1 -fg -geometry ${VNC_RESOLUTION} -depth ${VNC_DEPTH} -SecurityTypes None" >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo 'user=root' >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo 'autorestart=true' >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo '' >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo '[program:novnc]' >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo 'command=/usr/bin/websockify --web /usr/share/novnc/ 6080 localhost:5901' >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo 'user=root' >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo 'autorestart=true' >> /etc/supervisor/conf.d/supervisord.conf
+    # Create the Supervisor configuration file template
+    echo '[supervisord]' > /etc/supervisor/supervisord.conf.template && \
+    echo 'nodaemon=true' >> /etc/supervisor/supervisord.conf.template && \
+    echo '' >> /etc/supervisor/supervisord.conf.template && \
+    echo '[program:vncserver]' >> /etc/supervisor/supervisord.conf.template && \
+    echo "command=vncserver :1 -fg -geometry \${VNC_RESOLUTION} -depth \${VNC_DEPTH} -SecurityTypes None" >> /etc/supervisor/supervisord.conf.template && \
+    echo 'user=root' >> /etc/supervisor/supervisord.conf.template && \
+    echo 'autorestart=true' >> /etc/supervisor/supervisord.conf.template && \
+    echo '' >> /etc/supervisor/supervisord.conf.template && \
+    echo '[program:novnc]' >> /etc/supervisor/supervisord.conf.template && \
+    echo 'command=/usr/bin/websockify --web /usr/share/novnc/ 0.0.0.0:\${PORT:-6080} localhost:5901' >> /etc/supervisor/supervisord.conf.template && \
+    echo 'user=root' >> /etc/supervisor/supervisord.conf.template && \
+    echo 'autorestart=true' >> /etc/supervisor/supervisord.conf.template
 
-# Expose the noVNC web port
+# Create and add the entrypoint script to handle dynamic port assignment
+COPY <<'EOF' /entrypoint.sh
+#!/bin/sh
+set -e
+# Substitute environment variables in the supervisor template to create the final config
+envsubst < /etc/supervisor/supervisord.conf.template > /etc/supervisor/conf.d/supervisord.conf
+# Start supervisor
+exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
+EOF
+RUN chmod +x /entrypoint.sh
+
+# Expose the default port (Render will override this)
 EXPOSE 6080
 
 # Set the working directory for the container
 WORKDIR /root
 
-# Start Supervisor to run VNC and noVNC services
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
+# Use the entrypoint script to start the services
+CMD ["/entrypoint.sh"]
 
