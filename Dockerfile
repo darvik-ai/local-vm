@@ -7,7 +7,7 @@
 # through a standard web browser using noVNC.
 #
 # Author: Gemini
-# Version: 2.0 (Fixed permission issues by running as root)
+# Version: 2.1 (Fixed noVNC default page issue)
 #
 # --- VERY IMPORTANT SECURITY WARNING ---
 # This configuration is designed for ease of use in a trusted, local environment ONLY.
@@ -51,6 +51,8 @@ RUN apt-get update && \
     echo 'xterm' >> /root/.vnc/xstartup && \
     # Make the startup script executable
     chmod 755 /root/.vnc/xstartup && \
+    # Force create a symlink to the correct VNC client page
+    ln -sf /usr/share/novnc/vnc.html /usr/share/novnc/index.html && \
     # Create the Supervisor configuration file to manage VNC and noVNC services
     echo '[supervisord]' > /etc/supervisor/conf.d/supervisord.conf && \
     echo 'nodaemon=true' >> /etc/supervisor/conf.d/supervisord.conf && \
