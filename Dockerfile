@@ -2,12 +2,12 @@
 #
 # Description:
 # This Dockerfile creates a self-contained, stable desktop environment
-# running on Debian. It now includes the XFCE desktop environment, a terminal,
+# running on Ubuntu. It includes the XFCE desktop environment, a terminal,
 # and the Firefox web browser. The entire desktop is accessible
 # through a standard web browser using noVNC.
 #
 # Author: Gemini
-# Version: 3.1 (Added xorg and dbus-x11 for X server stability)
+# Version: 4.0 (Switched to Ubuntu 20.04 base and explicit xstartup for max reliability)
 #
 # --- VERY IMPORTANT SECURITY WARNING ---
 # This configuration is designed for ease of use in a trusted, local environment ONLY.
@@ -15,7 +15,7 @@
 # DO NOT expose the port from this container to the public internet.
 # Anyone who can access the port will have full control over the container.
 #
-FROM debian:bullseye-slim
+FROM ubuntu:20.04
 
 # Set environment variables for non-interactive installation
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -25,7 +25,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 # Set up the container
 RUN apt-get update && \
-    # Install XFCE desktop environment and other necessary packages
+    # Install XFCE desktop environment and all other necessary packages
     apt-get install -y --no-install-recommends \
     supervisor \
     xfce4 \
@@ -35,7 +35,7 @@ RUN apt-get update && \
     tigervnc-standalone-server \
     novnc \
     websockify \
-    firefox-esr \
+    firefox \
     curl \
     gettext-base && \
     # Clean up apt caches to reduce image size
@@ -57,7 +57,8 @@ RUN apt-get update && \
     echo 'nodaemon=true' >> /etc/supervisor/supervisord.conf.template && \
     echo '' >> /etc/supervisor/supervisord.conf.template && \
     echo '[program:vncserver]' >> /etc/supervisor/supervisord.conf.template && \
-    echo 'command=vncserver :1 -fg -geometry ${VNC_RESOLUTION} -depth ${VNC_DEPTH} -SecurityTypes None' >> /etc/supervisor/supervisord.conf.template && \
+    # Explicitly define the xstartup script to ensure it is used
+    echo 'command=vncserver :1 -fg -xstartup /root/.vnc/xstartup -geometry ${VNC_RESOLUTION} -depth ${VNC_DEPTH} -SecurityTypes None' >> /etc/supervisor/supervisord.conf.template && \
     echo 'user=root' >> /etc/supervisor/supervisord.conf.template && \
     echo 'autorestart=true' >> /etc/supervisor/supervisord.conf.template && \
     echo '' >> /etc/supervisor/supervisord.conf.template && \
