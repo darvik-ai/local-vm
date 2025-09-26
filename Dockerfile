@@ -7,7 +7,7 @@
 # through a standard web browser using noVNC.
 #
 # Author: Gemini
-# Version: 2.3 (Robust entrypoint with lock file cleanup and better env substitution)
+# Version: 2.4 (Added D-Bus for session stability)
 #
 # --- VERY IMPORTANT SECURITY WARNING ---
 # This configuration is designed for ease of use in a trusted, local environment ONLY.
@@ -25,7 +25,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 # Set up the container
 RUN apt-get update && \
-    # Install all necessary packages, including gettext-base for envsubst
+    # Install all necessary packages, including gettext-base for envsubst and dbus-x11 for stability
     apt-get install -y --no-install-recommends \
     supervisor \
     openbox \
@@ -36,17 +36,18 @@ RUN apt-get update && \
     websockify \
     firefox-esr \
     curl \
-    gettext-base && \
+    gettext-base \
+    dbus-x11 && \
     # Clean up apt caches to reduce image size
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
     # Create VNC directory for the root user
     mkdir -p /root/.vnc && \
-    # Create the VNC startup script
+    # Create the VNC startup script, now with dbus-launch for application stability
     echo '#!/bin/sh' > /root/.vnc/xstartup && \
     echo 'unset SESSION_MANAGER' >> /root/.vnc/xstartup && \
     echo 'unset DBUS_SESSION_BUS_ADDRESS' >> /root/.vnc/xstartup && \
-    echo 'openbox-session &' >> /root/.vnc/xstartup && \
+    echo 'dbus-launch openbox-session &' >> /root/.vnc/xstartup && \
     echo 'pcmanfm --desktop &' >> /root/.vnc/xstartup && \
     echo 'xterm' >> /root/.vnc/xstartup && \
     # Make the startup script executable
@@ -58,7 +59,7 @@ RUN apt-get update && \
     echo 'nodaemon=true' >> /etc/supervisor/supervisord.conf.template && \
     echo '' >> /etc/supervisor/supervisord.conf.template && \
     echo '[program:vncserver]' >> /etc/supervisor/supervisord.conf.template && \
-    echo 'command=vncserver :1 -fg -geometry ${VNC_RESOLUTION} -depth ${VNC_DEPTH} -SecurityTypes None' >> /etc/supervisor/supervisord.conf.template && \
+    echo 'command=vncserver :1 -fg -localhost -geometry ${VNC_RESOLUTION} -depth ${VNC_DEPTH} -SecurityTypes None' >> /etc/supervisor/supervisord.conf.template && \
     echo 'user=root' >> /etc/supervisor/supervisord.conf.template && \
     echo 'autorestart=true' >> /etc/supervisor/supervisord.conf.template && \
     echo '' >> /etc/supervisor/supervisord.conf.template && \
@@ -72,15 +73,21 @@ COPY <<'EOF' /entrypoint.sh
 #!/bin/sh
 set -e
 
-# Set a default for PORT if it's not provided by the environment (for local testing)
+# Export all environment variables to be available for substitution
 export PORT=${PORT:-6080}
+export VNC_RESOLUTION=${VNC_RESOLUTION:-1366x768}
+export VNC_DEPTH=${VNC_DEPTH:-24}
 
 # Clean up VNC lock files for a clean start
 rm -f /tmp/.X*-lock /tmp/.X11-unix/X*
 echo "Starting container. Services will listen on PORT: ${PORT}"
+echo "Desktop resolution set to: ${VNC_RESOLUTION}"
+
+# Define the variables to be substituted to avoid issues
+VARS_TO_SUBSTITUTE='${PORT} ${VNC_RESOLUTION} ${VNC_DEPTH}'
 
 # Substitute all relevant environment variables into the template
-envsubst < /etc/supervisor/supervisord.conf.template > /etc/supervisor/conf.d/supervisord.conf
+envsubst "$VARS_TO_SUBSTITUTE" < /etc/supervisor/supervisord.conf.template > /etc/supervisor/conf.d/supervisord.conf
 
 echo "--- Generated supervisord.conf ---"
 cat /etc/supervisor/conf.d/supervisord.conf
