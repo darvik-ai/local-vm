@@ -2,6 +2,8 @@
 FROM ubuntu:20.04
 
 ENV DEBIAN_FRONTEND=noninteractive
+ENV DEFAULT_VNC_PASSWORD="ChangeMe-Strong!"
+
 
 # Core runtime settings (can override at run time)
 ENV DISPLAY=":1" \
@@ -81,23 +83,18 @@ VNC_RESOLUTION="${VNC_RESOLUTION:-1366x768}"
 VNC_DEPTH="${VNC_DEPTH:-24}"
 NOVNC_CERT="${NOVNC_CERT:-/home/vncuser/.ssl/novnc.crt}"
 NOVNC_KEY="${NOVNC_KEY:-/home/vncuser/.ssl/novnc.key}"
+DEFAULT_VNC_PASSWORD="${DEFAULT_VNC_PASSWORD:-ChangeMe-Strong!}"  # fallback default
 
 # Ensure expected dirs exist and are owned by the non-root user
 install -d -o vncuser -g vncuser /home/vncuser/.vnc /home/vncuser/.ssl /home/vncuser/supervisor
 
-# Create VNC password file if missing and env VNC_PASSWORD provided
+# Create VNC password file if missing; prefer VNC_PASSWORD, else fallback to DEFAULT_VNC_PASSWORD
 if [ ! -f /home/vncuser/.vnc/passwd ]; then
-  if [ -n "${VNC_PASSWORD}" ]; then
-    # vncpasswd -f reads password from stdin and writes the obfuscated hash to stdout
-    # store at ~/.vnc/passwd with owner-only permissions
-    printf "%s\n" "${VNC_PASSWORD}" | vncpasswd -f > /home/vncuser/.vnc/passwd
-    chown vncuser:vncuser /home/vncuser/.vnc/passwd
-    chmod 600 /home/vncuser/.vnc/passwd
-  else
-    echo "ERROR: VNC_PASSWORD not set and no existing password file at /home/vncuser/.vnc/passwd"
-    echo "Set VNC_PASSWORD to a strong value at 'docker run' time."
-    exit 1
-  fi
+  PASS="${VNC_PASSWORD:-$DEFAULT_VNC_PASSWORD}"
+  # Write obfuscated password hash non-interactively
+  printf "%s\n" "$PASS" | vncpasswd -f > /home/vncuser/.vnc/passwd
+  chown vncuser:vncuser /home/vncuser/.vnc/passwd
+  chmod 600 /home/vncuser/.vnc/passwd
 fi
 
 # Create self-signed cert for wss:// if none provided/mounted
