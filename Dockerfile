@@ -13,7 +13,7 @@ ENV DISPLAY=":1" \
     VNC_UID="1000" \
     VNC_GID="1000"
 
-# Install packages
+# Install packages including tigervnc-common for vncpasswd command
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
       supervisor \
@@ -27,8 +27,7 @@ RUN apt-get update && \
       websockify \
       firefox \
       curl \
-      gettext-base \
-      python3 && \
+      gettext-base && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user and workspace
@@ -37,7 +36,7 @@ RUN useradd -m -u ${VNC_UID} -s /bin/bash ${VNC_USER} && \
     install -d -o ${VNC_USER} -g ${VNC_USER} /home/${VNC_USER}/supervisor && \
     ln -sf /usr/share/novnc/vnc_lite.html /usr/share/novnc/index.html
 
-# Create supervisor template (HTTP websockify for platform compatibility)
+# Create supervisor template
 RUN cat > /home/vncuser/supervisor/supervisord.conf.template << 'TEMPLATE'
 [supervisord]
 nodaemon=true
@@ -62,7 +61,7 @@ priority=3
 autorestart=true
 TEMPLATE
 
-# Create entrypoint with working VNC password setup
+# Create entrypoint with proper vncpasswd usage
 RUN cat > /home/vncuser/entrypoint.sh << 'ENTRYPOINT'
 #!/bin/bash
 set -e
@@ -74,36 +73,18 @@ DEFAULT_VNC_PASSWORD="${DEFAULT_VNC_PASSWORD:-ChangeMe-Strong!}"
 
 install -d -o vncuser -g vncuser /home/vncuser/.vnc /home/vncuser/supervisor
 
-# Create VNC password file using Python (reliable cross-platform approach)
+# Create VNC password file using the actual vncpasswd -f command
 if [ ! -f /home/vncuser/.vnc/passwd ]; then
   PASS="${VNC_PASSWORD:-$DEFAULT_VNC_PASSWORD}"
   echo "Creating VNC password file..."
   
-  python3 -c "
-import struct
-import os
-
-def create_vnc_passwd(password, filename):
-    # VNC uses DES encryption with a specific key pattern
-    # This is the standard VNC password obfuscation
-    key = [23, 82, 107, 6, 35, 78, 88, 7]
-    password = password[:8].ljust(8, '\x00')
-    
-    encrypted = []
-    for i in range(8):
-        encrypted.append(ord(password[i]) ^ key[i])
-    
-    os.makedirs(os.path.dirname(filename), exist_ok=True)
-    with open(filename, 'wb') as f:
-        f.write(bytes(encrypted))
-    
-    os.chmod(filename, 0o600)
-
-create_vnc_passwd('$PASS', '/home/vncuser/.vnc/passwd')
-print('VNC password file created successfully')
-"
+  # Use the actual vncpasswd command with -f flag (filter mode)
+  # This reads password from stdin and writes obfuscated version to stdout
+  echo "$PASS" | /usr/bin/vncpasswd -f > /home/vncuser/.vnc/passwd
   
   chown vncuser:vncuser /home/vncuser/.vnc/passwd
+  chmod 600 /home/vncuser/.vnc/passwd
+  echo "VNC password file created successfully"
 fi
 
 # Render config
@@ -114,7 +95,7 @@ echo "--- Effective supervisord.conf ---"
 cat /home/vncuser/supervisor/supervisord.conf
 echo "----------------------------------"
 echo "Listening on PORT=${PORT} with VNC ${VNC_RESOLUTION}@${VNC_DEPTH}"
-echo "VNC password: Use the configured password to connect"
+echo "Use the configured VNC password to connect via browser"
 
 exec /usr/bin/supervisord -c /home/vncuser/supervisor/supervisord.conf
 ENTRYPOINT
