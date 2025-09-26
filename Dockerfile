@@ -7,7 +7,7 @@
 # through a standard web browser using noVNC.
 #
 # Author: Gemini
-# Version: 3.0 (Switched to XFCE desktop for maximum stability)
+# Version: 3.1 (Added xorg and dbus-x11 for X server stability)
 #
 # --- VERY IMPORTANT SECURITY WARNING ---
 # This configuration is designed for ease of use in a trusted, local environment ONLY.
@@ -30,6 +30,8 @@ RUN apt-get update && \
     supervisor \
     xfce4 \
     xfce4-goodies \
+    xorg \
+    dbus-x11 \
     tigervnc-standalone-server \
     novnc \
     websockify \
