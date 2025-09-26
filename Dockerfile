@@ -7,7 +7,7 @@
 # through a standard web browser using noVNC.
 #
 # Author: Gemini
-# Version: 4.0 (Switched to Ubuntu 20.04 base and explicit xstartup for max reliability)
+# Version: 5.0 (Switched to direct Xvnc and supervised session for ultimate stability)
 #
 # --- VERY IMPORTANT SECURITY WARNING ---
 # This configuration is designed for ease of use in a trusted, local environment ONLY.
@@ -41,30 +41,29 @@ RUN apt-get update && \
     # Clean up apt caches to reduce image size
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
-    # Create VNC directory for the root user
-    mkdir -p /root/.vnc && \
-    # Create the VNC startup script to launch the XFCE session
-    echo '#!/bin/sh' > /root/.vnc/xstartup && \
-    echo 'unset SESSION_MANAGER' >> /root/.vnc/xstartup && \
-    echo 'unset DBUS_SESSION_BUS_ADDRESS' >> /root/.vnc/xstartup && \
-    echo 'startxfce4 &' >> /root/.vnc/xstartup && \
-    # Make the startup script executable
-    chmod 755 /root/.vnc/xstartup && \
     # Force create a symlink to the correct VNC client page
     ln -sf /usr/share/novnc/vnc.html /usr/share/novnc/index.html && \
     # Create the Supervisor configuration file template
     echo '[supervisord]' > /etc/supervisor/supervisord.conf.template && \
     echo 'nodaemon=true' >> /etc/supervisor/supervisord.conf.template && \
     echo '' >> /etc/supervisor/supervisord.conf.template && \
-    echo '[program:vncserver]' >> /etc/supervisor/supervisord.conf.template && \
-    # Explicitly define the xstartup script to ensure it is used
-    echo 'command=vncserver :1 -fg -xstartup /root/.vnc/xstartup -geometry ${VNC_RESOLUTION} -depth ${VNC_DEPTH} -SecurityTypes None' >> /etc/supervisor/supervisord.conf.template && \
+    echo '[program:xserver]' >> /etc/supervisor/supervisord.conf.template && \
+    echo 'command=Xvnc :1 -geometry ${VNC_RESOLUTION} -depth ${VNC_DEPTH} -SecurityTypes None -AlwaysShared' >> /etc/supervisor/supervisord.conf.template && \
     echo 'user=root' >> /etc/supervisor/supervisord.conf.template && \
+    echo 'priority=1' >> /etc/supervisor/supervisord.conf.template && \
+    echo 'autorestart=true' >> /etc/supervisor/supervisord.conf.template && \
+    echo '' >> /etc/supervisor/supervisord.conf.template && \
+    echo '[program:xfce]' >> /etc/supervisor/supervisord.conf.template && \
+    echo 'command=startxfce4' >> /etc/supervisor/supervisord.conf.template && \
+    echo 'environment=DISPLAY=":1"' >> /etc/supervisor/supervisord.conf.template && \
+    echo 'user=root' >> /etc/supervisor/supervisord.conf.template && \
+    echo 'priority=2' >> /etc/supervisor/supervisord.conf.template && \
     echo 'autorestart=true' >> /etc/supervisor/supervisord.conf.template && \
     echo '' >> /etc/supervisor/supervisord.conf.template && \
     echo '[program:novnc]' >> /etc/supervisor/supervisord.conf.template && \
     echo 'command=/usr/bin/websockify --web /usr/share/novnc/ 0.0.0.0:${PORT} localhost:5901' >> /etc/supervisor/supervisord.conf.template && \
     echo 'user=root' >> /etc/supervisor/supervisord.conf.template && \
+    echo 'priority=3' >> /etc/supervisor/supervisord.conf.template && \
     echo 'autorestart=true' >> /etc/supervisor/supervisord.conf.template
 
 # Create and add the entrypoint script to handle dynamic port assignment and cleanup
