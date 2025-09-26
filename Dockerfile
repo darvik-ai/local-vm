@@ -1,109 +1,136 @@
-# Universal Dockerfile for a Lightweight Web-Based Desktop
-#
-# Description:
-# This Dockerfile creates a self-contained, stable desktop environment
-# running on Ubuntu. It includes the XFCE desktop environment, a terminal,
-# and the Firefox web browser. The entire desktop is accessible
-# through a standard web browser using noVNC.
-#
-# Author: Gemini
-# Version: 6.2 (Final - Switched to vnc_lite.html for maximum proxy compatibility)
-#
-# --- VERY IMPORTANT SECURITY WARNING ---
-# This configuration is designed for ease of use in a trusted, local environment ONLY.
-# It has NO PASSWORD and NO VNC AUTHENTICATION.
-# DO NOT expose the port from this container to the public internet.
-# Anyone who can access the port will have full control over the container.
-#
+# Hardened web-based XFCE desktop with VNC auth, TLS, and non-root user
 FROM ubuntu:20.04
 
-# Set environment variables for non-interactive installation
-ENV DEBIAN_FRONTEND=noninteractive \
-    DISPLAY=:1 \
-    VNC_RESOLUTION=1366x768 \
-    VNC_DEPTH=24
+ENV DEBIAN_FRONTEND=noninteractive
 
-# Set up the container
+# Core runtime settings (can override at run time)
+ENV DISPLAY=":1" \
+    PORT="6080" \
+    VNC_RESOLUTION="1366x768" \
+    VNC_DEPTH="24" \
+    # Files live in the non-root user's home so Supervisor can run unprivileged
+    VNC_USER="vncuser" \
+    VNC_UID="1000" \
+    VNC_GID="1000" \
+    NOVNC_CERT="/home/vncuser/.ssl/novnc.crt" \
+    NOVNC_KEY="/home/vncuser/.ssl/novnc.key"
+
+# Packages: desktop, VNC, noVNC, proxy, TLS tooling, supervisor
 RUN apt-get update && \
-    # Install XFCE desktop environment and all other necessary packages
     apt-get install -y --no-install-recommends \
-    supervisor \
-    xfce4 \
-    xfce4-goodies \
-    xorg \
-    dbus-x11 \
-    tigervnc-standalone-server \
-    novnc \
-    websockify \
-    firefox \
-    curl \
-    gettext-base && \
-    # Clean up apt caches to reduce image size
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/* && \
-    # Use vnc_lite.html which is a lighter client and can be more reliable behind proxies
-    ln -sf /usr/share/novnc/vnc_lite.html /usr/share/novnc/index.html && \
-    # Create the Supervisor configuration file template
-    echo '[supervisord]' > /etc/supervisor/supervisord.conf.template && \
-    echo 'nodaemon=true' >> /etc/supervisor/supervisord.conf.template && \
-    echo '' >> /etc/supervisor/supervisord.conf.template && \
-    echo '[program:xserver]' >> /etc/supervisor/supervisord.conf.template && \
-    echo 'command=Xvnc :1 -geometry ${VNC_RESOLUTION} -depth ${VNC_DEPTH} -SecurityTypes None -AlwaysShared' >> /etc/supervisor/supervisord.conf.template && \
-    echo 'user=root' >> /etc/supervisor/supervisord.conf.template && \
-    echo 'priority=1' >> /etc/supervisor/supervisord.conf.template && \
-    echo 'autorestart=true' >> /etc/supervisor/supervisord.conf.template && \
-    echo '' >> /etc/supervisor/supervisord.conf.template && \
-    echo '[program:xfce]' >> /etc/supervisor/supervisord.conf.template && \
-    # Use dbus-launch for a more robust session startup
-    echo 'command=/bin/sh -c "dbus-launch startxfce4"' >> /etc/supervisor/supervisord.conf.template && \
-    echo 'environment=DISPLAY=":1"' >> /etc/supervisor/supervisord.conf.template && \
-    echo 'user=root' >> /etc/supervisor/supervisord.conf.template && \
-    echo 'priority=2' >> /etc/supervisor/supervisord.conf.template && \
-    echo 'autorestart=true' >> /etc/supervisor/supervisord.conf.template && \
-    echo '' >> /etc/supervisor/supervisord.conf.template && \
-    echo '[program:novnc]' >> /etc/supervisor/supervisord.conf.template && \
-    # Use 127.0.0.1 instead of localhost for maximum compatibility with proxies
-    echo 'command=/usr/bin/websockify --verbose --web /usr/share/novnc/ 0.0.0.0:${PORT} 127.0.0.1:5901' >> /etc/supervisor/supervisord.conf.template && \
-    echo 'user=root' >> /etc/supervisor/supervisord.conf.template && \
-    echo 'priority=3' >> /etc/supervisor/supervisord.conf.template && \
-    echo 'autorestart=true' >> /etc/supervisor/supervisord.conf.template
+      supervisor \
+      xfce4 \
+      xfce4-goodies \
+      xorg \
+      dbus-x11 \
+      tigervnc-standalone-server \
+      novnc \
+      websockify \
+      firefox \
+      curl \
+      gettext-base \
+      openssl && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Create and add the entrypoint script to handle dynamic port assignment and cleanup
-COPY <<'EOF' /entrypoint.sh
+# Create non-root user and workspace
+RUN useradd -m -u ${VNC_UID} -s /bin/bash ${VNC_USER} && \
+    install -d -o ${VNC_USER} -g ${VNC_USER} /home/${VNC_USER}/.vnc && \
+    install -d -o ${VNC_USER} -g ${VNC_USER} /home/${VNC_USER}/.ssl && \
+    install -d -o ${VNC_USER} -g ${VNC_USER} /home/${VNC_USER}/supervisor && \
+    # Use the lightweight noVNC client
+    ln -sf /usr/share/novnc/vnc_lite.html /usr/share/novnc/index.html
+
+# Supervisor template (programs run as non-root)
+COPY <<'EOF' /home/vncuser/supervisor/supervisord.conf.template
+[supervisord]
+nodaemon=true
+
+[program:xserver]
+# Bind VNC to localhost only; require auth; enable TLS on the VNC layer
+# Note: Password file created at runtime under /home/vncuser/.vnc/passwd
+command=/usr/bin/Xvnc :1 -rfbport 5901 -geometry ${VNC_RESOLUTION} -depth ${VNC_DEPTH} -SecurityTypes TLSVnc,VncAuth -PasswordFile /home/vncuser/.vnc/passwd -localhost
+user=vncuser
+priority=1
+autorestart=true
+
+[program:xfce]
+command=/bin/sh -c "dbus-launch startxfce4"
+environment=DISPLAY=":1"
+user=vncuser
+priority=2
+autorestart=true
+
+[program:novnc]
+# Terminate TLS at websockify for wss://, and proxy to 127.0.0.1:5901
+command=/usr/bin/websockify --verbose --ssl-only --cert ${NOVNC_CERT} --key ${NOVNC_KEY} --web /usr/share/novnc/ 0.0.0.0:${PORT} 127.0.0.1:5901
+user=vncuser
+priority=3
+autorestart=true
+EOF
+
+# Entrypoint: create VNC password file, self-signed cert (if missing), render supervisor conf, start services
+COPY <<'EOF' /home/vncuser/entrypoint.sh
 #!/bin/sh
 set -e
 
-# Export all environment variables to be available for substitution
-export PORT=${PORT:-6080}
-export VNC_RESOLUTION=${VNC_RESOLUTION:-1366x768}
-export VNC_DEPTH=${VNC_DEPTH:-24}
+umask 077
 
-# Clean up VNC lock files for a clean start
-rm -f /tmp/.X*-lock /tmp/.X11-unix/X*
-echo "Starting container. Services will listen on PORT: ${PORT}"
-echo "Desktop resolution set to: ${VNC_RESOLUTION}"
+# Defaults (can be overridden at run time)
+PORT="${PORT:-6080}"
+VNC_RESOLUTION="${VNC_RESOLUTION:-1366x768}"
+VNC_DEPTH="${VNC_DEPTH:-24}"
+NOVNC_CERT="${NOVNC_CERT:-/home/vncuser/.ssl/novnc.crt}"
+NOVNC_KEY="${NOVNC_KEY:-/home/vncuser/.ssl/novnc.key}"
 
-# Define the variables to be substituted to avoid issues
-VARS_TO_SUBSTITUTE='${PORT} ${VNC_RESOLUTION} ${VNC_DEPTH}'
+# Ensure expected dirs exist and are owned by the non-root user
+install -d -o vncuser -g vncuser /home/vncuser/.vnc /home/vncuser/.ssl /home/vncuser/supervisor
 
-# Substitute all relevant environment variables into the template
-envsubst "$VARS_TO_SUBSTITUTE" < /etc/supervisor/supervisord.conf.template > /etc/supervisor/conf.d/supervisord.conf
+# Create VNC password file if missing and env VNC_PASSWORD provided
+if [ ! -f /home/vncuser/.vnc/passwd ]; then
+  if [ -n "${VNC_PASSWORD}" ]; then
+    # vncpasswd -f reads password from stdin and writes the obfuscated hash to stdout
+    # store at ~/.vnc/passwd with owner-only permissions
+    printf "%s\n" "${VNC_PASSWORD}" | vncpasswd -f > /home/vncuser/.vnc/passwd
+    chown vncuser:vncuser /home/vncuser/.vnc/passwd
+    chmod 600 /home/vncuser/.vnc/passwd
+  else
+    echo "ERROR: VNC_PASSWORD not set and no existing password file at /home/vncuser/.vnc/passwd"
+    echo "Set VNC_PASSWORD to a strong value at 'docker run' time."
+    exit 1
+  fi
+fi
 
-echo "--- Generated supervisord.conf ---"
-cat /etc/supervisor/conf.d/supervisord.conf
-echo "------------------------------------"
+# Create self-signed cert for wss:// if none provided/mounted
+if [ ! -f "${NOVNC_CERT}" ] || [ ! -f "${NOVNC_KEY}" ]; then
+  echo "Generating self-signed certificate for websockify (dev use) ..."
+  openssl req -new -x509 -days 365 -nodes -subj "/CN=localhost" \
+    -keyout "${NOVNC_KEY}" -out "${NOVNC_CERT}"
+  chown vncuser:vncuser "${NOVNC_CERT}" "${NOVNC_KEY}"
+  chmod 600 "${NOVNC_KEY}"
+fi
 
-# Start supervisor
-exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
+# Render supervisor config with runtime values
+VARS_TO_SUBSTITUTE='${PORT} ${VNC_RESOLUTION} ${VNC_DEPTH} ${NOVNC_CERT} ${NOVNC_KEY}'
+envsubst "${VARS_TO_SUBSTITUTE}" < /home/vncuser/supervisor/supervisord.conf.template > /home/vncuser/supervisor/supervisord.conf
+
+echo "--- Effective supervisord.conf ---"
+cat /home/vncuser/supervisor/supervisord.conf
+echo "----------------------------------"
+echo "Listening on PORT=${PORT} with VNC ${VNC_RESOLUTION}@${VNC_DEPTH}"
+
+# Start Supervisor as non-root
+exec /usr/bin/supervisord -c /home/vncuser/supervisor/supervisord.conf
 EOF
-RUN chmod +x /entrypoint.sh
 
-# Expose the default port (platform will override this)
+# Permissions
+RUN chown -R ${VNC_USER}:${VNC_USER} /home/${VNC_USER} && \
+    chmod +x /home/${VNC_USER}/entrypoint.sh
+
+# Drop privileges: run everything as vncuser, including Supervisor
+USER ${VNC_USER}
+
+WORKDIR /home/${VNC_USER}
+
 EXPOSE 6080
 
-# Set the working directory for the container
-WORKDIR /root
-
-# Use the entrypoint script to start the services
-CMD ["/entrypoint.sh"]
-
+CMD ["/home/vncuser/entrypoint.sh"]
