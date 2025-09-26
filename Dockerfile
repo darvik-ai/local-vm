@@ -7,7 +7,7 @@
 # through a standard web browser using noVNC.
 #
 # Author: Gemini
-# Version: 5.0 (Switched to direct Xvnc and supervised session for ultimate stability)
+# Version: 5.1 (Added verbose logging to websockify for final debugging)
 #
 # --- VERY IMPORTANT SECURITY WARNING ---
 # This configuration is designed for ease of use in a trusted, local environment ONLY.
@@ -61,7 +61,7 @@ RUN apt-get update && \
     echo 'autorestart=true' >> /etc/supervisor/supervisord.conf.template && \
     echo '' >> /etc/supervisor/supervisord.conf.template && \
     echo '[program:novnc]' >> /etc/supervisor/supervisord.conf.template && \
-    echo 'command=/usr/bin/websockify --web /usr/share/novnc/ 0.0.0.0:${PORT} localhost:5901' >> /etc/supervisor/supervisord.conf.template && \
+    echo 'command=/usr/bin/websockify --verbose --web /usr/share/novnc/ 0.0.0.0:${PORT} localhost:5901' >> /etc/supervisor/supervisord.conf.template && \
     echo 'user=root' >> /etc/supervisor/supervisord.conf.template && \
     echo 'priority=3' >> /etc/supervisor/supervisord.conf.template && \
     echo 'autorestart=true' >> /etc/supervisor/supervisord.conf.template
