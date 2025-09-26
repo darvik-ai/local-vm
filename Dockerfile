@@ -1,13 +1,13 @@
 # Universal Dockerfile for a Lightweight Web-Based Desktop
 #
 # Description:
-# This Dockerfile creates a self-contained, lightweight desktop environment
-# running on Debian. It includes the Openbox window manager, a file manager,
-# a terminal, and the Firefox web browser. The entire desktop is accessible
+# This Dockerfile creates a self-contained, stable desktop environment
+# running on Debian. It now includes the XFCE desktop environment, a terminal,
+# and the Firefox web browser. The entire desktop is accessible
 # through a standard web browser using noVNC.
 #
 # Author: Gemini
-# Version: 2.5 (Removed -localhost flag for cloud platform compatibility)
+# Version: 3.0 (Switched to XFCE desktop for maximum stability)
 #
 # --- VERY IMPORTANT SECURITY WARNING ---
 # This configuration is designed for ease of use in a trusted, local environment ONLY.
@@ -25,31 +25,27 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 # Set up the container
 RUN apt-get update && \
-    # Install all necessary packages, including gettext-base for envsubst and dbus-x11 for stability
+    # Install XFCE desktop environment and other necessary packages
     apt-get install -y --no-install-recommends \
     supervisor \
-    openbox \
-    pcmanfm \
-    xterm \
+    xfce4 \
+    xfce4-goodies \
     tigervnc-standalone-server \
     novnc \
     websockify \
     firefox-esr \
     curl \
-    gettext-base \
-    dbus-x11 && \
+    gettext-base && \
     # Clean up apt caches to reduce image size
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
     # Create VNC directory for the root user
     mkdir -p /root/.vnc && \
-    # Create the VNC startup script, now with dbus-launch for application stability
+    # Create the VNC startup script to launch the XFCE session
     echo '#!/bin/sh' > /root/.vnc/xstartup && \
     echo 'unset SESSION_MANAGER' >> /root/.vnc/xstartup && \
     echo 'unset DBUS_SESSION_BUS_ADDRESS' >> /root/.vnc/xstartup && \
-    echo 'dbus-launch openbox-session &' >> /root/.vnc/xstartup && \
-    echo 'pcmanfm --desktop &' >> /root/.vnc/xstartup && \
-    echo 'xterm' >> /root/.vnc/xstartup && \
+    echo 'startxfce4 &' >> /root/.vnc/xstartup && \
     # Make the startup script executable
     chmod 755 /root/.vnc/xstartup && \
     # Force create a symlink to the correct VNC client page
@@ -59,7 +55,6 @@ RUN apt-get update && \
     echo 'nodaemon=true' >> /etc/supervisor/supervisord.conf.template && \
     echo '' >> /etc/supervisor/supervisord.conf.template && \
     echo '[program:vncserver]' >> /etc/supervisor/supervisord.conf.template && \
-    # Removed -localhost flag to allow connections through platform proxies
     echo 'command=vncserver :1 -fg -geometry ${VNC_RESOLUTION} -depth ${VNC_DEPTH} -SecurityTypes None' >> /etc/supervisor/supervisord.conf.template && \
     echo 'user=root' >> /etc/supervisor/supervisord.conf.template && \
     echo 'autorestart=true' >> /etc/supervisor/supervisord.conf.template && \
