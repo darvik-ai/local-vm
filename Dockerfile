@@ -7,7 +7,7 @@
 # through a standard web browser using noVNC.
 #
 # Author: Gemini
-# Version: 6.0 (Final - Hardened networking and session startup)
+# Version: 6.1 (Final - Switched to vnc_auto.html for proxy compatibility)
 #
 # --- VERY IMPORTANT SECURITY WARNING ---
 # This configuration is designed for ease of use in a trusted, local environment ONLY.
@@ -41,8 +41,8 @@ RUN apt-get update && \
     # Clean up apt caches to reduce image size
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
-    # Force create a symlink to the correct VNC client page
-    ln -sf /usr/share/novnc/vnc.html /usr/share/novnc/index.html && \
+    # Use vnc_auto.html which is better at auto-connecting behind proxies
+    ln -sf /usr/share/novnc/vnc_auto.html /usr/share/novnc/index.html && \
     # Create the Supervisor configuration file template
     echo '[supervisord]' > /etc/supervisor/supervisord.conf.template && \
     echo 'nodaemon=true' >> /etc/supervisor/supervisord.conf.template && \
